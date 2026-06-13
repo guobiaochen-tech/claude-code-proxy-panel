@@ -1,40 +1,40 @@
 # Claude Code Proxy Panel
 
-> A local macOS web panel that centralizes **proxy-status monitoring** and **Claude Code provider switching** — built to live alongside **FlClash** (proxy) and **CC Switch** (provider manager).
+> A local macOS web panel that shows your current proxy status and syncs it into **Terminal / git / VS Code / CC Switch** — with read-only views of Claude Code and Hermes. Built to live alongside **FlClash** / **Clash Verge** (proxy) and **CC Switch** (provider manager).
 
-> 一个 macOS 本地网页面板，把**代理状态监控**和 **Claude Code 的 provider 切换**集中到一页，专门配合 **FlClash**（代理）和 **CC Switch**（provider 管理）使用。
+> 一个 macOS 本地网页面板：显示当前代理状态，并一键同步到 **终端 / git / VS Code / CC Switch**；只读展示 Claude Code、Hermes 状态。配合 **FlClash** / **Clash Verge**（代理）和 **CC Switch**（provider 管理）使用。
 
 ---
 
 ## Features / 功能
 
-- **Proxy status at a glance** — auto-detects whether the configured FlClash port is listening.
-- **One-click fix** — when the port changes, syncs the new port into CC Switch's `global_proxy_url` so Claude Code keeps working.
-- **Provider switching** — reads every provider from the CC Switch database; click a button to switch Claude Code's active provider and sync `settings.json`.
-- **Zero dependencies** — pure Python standard library; no `pip install` needed.
+- **Current proxy at a glance** — auto-detects which proxy (FlClash or Clash Verge) is running, and whether it's in **TUN mode** or listening on a **port**.
+- **Sync to apps** — one click applies the current proxy (or *direct* under TUN) to **Terminal** (`.zshrc`), **git**, **VS Code**, and **CC Switch**. Each row shows ✓ synced or ⚠ mismatched.
+- **Claude Code / Hermes status (read-only)** — shows the active provider, model, and connectivity (Claude Code is probed via a real `/v1` call).
+- **Near-zero dependencies** — mostly Python standard library; PyYAML is *optional* (used only to read the Hermes config, falls back to regex if absent).
 - **Auto-refresh** — the page refreshes itself every 30 seconds.
 
 中：
 
-- **代理状态一目了然**：自动检测 FlClash 配置端口是否在监听。
-- **一键修复**：端口变了，自动把新端口写进 CC Switch 的 `global_proxy_url`，让 Claude Code 继续可用。
-- **切换 provider**：从 CC Switch 数据库读出所有 provider，点按钮切换并同步 Claude Code 的 `settings.json`。
-- **零依赖**：纯 Python 标准库，无需 `pip install`。
-- **自动刷新**：页面每 30 秒自动刷新一次。
+- **当前代理一目了然**：自动检测当前是 FlClash 还是 Clash Verge 在跑，是 **TUN 模式**还是某个**端口**在监听。
+- **同步到各软件**：一键把当前代理（或 TUN 下的直连）应用到 **终端**（`.zshrc`）、**git**、**VS Code**、**CC Switch**；每行用 ✓/⚠ 标示是否已同步。
+- **Claude Code / Hermes 状态（只读）**：显示当前后台、模型和连通性（Claude Code 会真实发一次 `/v1` 请求探测）。
+- **近乎零依赖**：以 Python 标准库为主；PyYAML 是*可选*依赖（仅用于读 Hermes 配置，没装会自动降级正则解析）。
+- **自动刷新**：页面每 30 秒刷新一次。
 
 ## Prerequisites / 前置条件
 
 - **macOS** — the launcher and `no_proxy` setup assume macOS/zsh.
 - **Python 3** — system Python is fine.
-- **FlClash** — the proxy client whose port this panel monitors.
-- **CC Switch** — a Claude Code provider manager; this panel reads/writes its database. *(This panel is a companion to CC Switch — without it the switching features have nothing to read.)*
+- **FlClash** *or* **Clash Verge** — the proxy client this panel detects.
+- **CC Switch** (optional but expected) — Claude Code provider manager; the panel reads its database and syncs proxy URLs into it.
 
 中：
 
 - **macOS**：启动脚本和 `no_proxy` 设置都假定 macOS/zsh。
 - **Python 3**：系统自带即可。
-- **FlClash**：被监控端口的代理客户端。
-- **CC Switch**：Claude Code 的 provider 管理工具，本面板读写它的数据库。（本面板是 CC Switch 的配套，没有 CC Switch，切换功能无从读起。）
+- **FlClash** *或* **Clash Verge**：本面板检测的代理客户端。
+- **CC Switch**（可选但推荐）：Claude Code 的 provider 管理工具；本面板读取它的数据库，并把代理地址同步进去。
 
 ## Quick Start / 快速开始
 
@@ -45,7 +45,7 @@ cp secrets.example.json secrets.json   # then edit secrets.json with your key
 python3 server.py
 ```
 
-Then open <http://127.0.0.1:8866> in your browser, or double-click **`启动.command`**.
+Open <http://127.0.0.1:8866>, or double-click **`启动.command`**.
 
 中：
 
@@ -56,6 +56,18 @@ python3 server.py
 ```
 
 浏览器打开 <http://127.0.0.1:8866>，或双击 **`启动.command`**。
+
+## How it works / 工作原理
+
+- **Detects** the active proxy by reading the FlClash/Clash Verge config + checking the process + checking for a TUN interface.
+- **"Apply" button** writes the current proxy into the chosen target: in TUN mode → sets it to *direct*; in port mode → fills in the port. Targets: `.zshrc` (terminal), git global config, VS Code `settings.json`, CC Switch DB (`global_proxy_url`).
+- Claude Code / Hermes panels are **read-only**. To **switch** Claude Code's provider, do it in the **CC Switch** app — this panel only displays it.
+
+中：
+
+- **检测**：读 FlClash/Clash Verge 配置 + 查进程 + 查 TUN 网卡，判断当前代理。
+- **"应用"按钮**：把当前代理写进选定目标——TUN 模式→设为*直连*；端口模式→填入端口。目标：`.zshrc`（终端）、git 全局配置、VS Code `settings.json`、CC Switch 数据库（`global_proxy_url`）。
+- Claude Code / Hermes 面板是**只读**的。要**切换** Claude Code 的 provider，请到 **CC Switch** 软件里操作——本面板只显示。
 
 ## Configuration / 配置
 
@@ -79,17 +91,14 @@ This key is used **only** to health-check a provider's endpoint (a tiny `/v1` pr
 
 这个 key **只**用于健康探测某个 provider 的接口（发一个极小的 `/v1` 请求）。没有它面板照常运行，只是少了连通性检测。key 在运行时读取，**绝不**出现在源码里。
 
-## How it works / 工作原理
+## API
 
-- Reads CC Switch's configured proxy port and checks whether it's listening.
-- On **fix**, rewrites `global_proxy_url` (CC Switch DB) and Claude Code's `settings.json`.
-- Lists all providers from the CC Switch DB and lets you set the active one with one click.
-
-中：
-
-- 读取 CC Switch 配置的代理端口，检测是否在监听。
-- 点**修复**时，重写 CC Switch 数据库里的 `global_proxy_url` 和 Claude Code 的 `settings.json`。
-- 列出 CC Switch 数据库里的所有 provider，可一键设为当前。
+| Method | Path | 作用 / Purpose |
+|---|---|---|
+| GET | `/api/status` | 全部状态 / full status |
+| GET | `/api/proxy/scan` | 扫描在监听的代理端口 / scan listening proxy ports |
+| POST | `/api/apply/{terminal\|git\|vscode\|ccswitch}` | 同步当前代理到指定目标 / sync current proxy to a target |
+| GET | `/api/claude/providers` | provider 列表（后端已实现，前端暂未接入） |
 
 ## Known Issues / 已知问题
 
@@ -105,8 +114,8 @@ This key is used **only** to health-check a provider's endpoint (a tiny `/v1` pr
 
 | File | Role / 作用 |
 |---|---|
-| `server.py` | Python backend, stdlib only / Python 后端，纯标准库 |
-| `templates/index.html` | Frontend page / 前端页面 |
+| `server.py` | Python backend (stdlib `http.server`) / Python 后端（标准库） |
+| `templates/index.html` | Frontend page, auto-refresh / 前端页面，自动刷新 |
 | `secrets.example.json` | Template for `secrets.json` / `secrets.json` 模板 |
 | `启动.command` | macOS double-click launcher / macOS 双击启动脚本 |
 
