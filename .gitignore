@@ -1,0 +1,7 @@
+secrets.json
+.DS_Store
+__pycache__/
+*.pyc
+.env
+CLAUDE.md
+使用说明.md

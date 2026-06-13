@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网络工具</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d2991d;
+    --blue: #58a6ff;
+    --accent: #7c3aed;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    padding: 24px 20px;
+    max-width: 640px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 2px; }
+  .subtitle { color: var(--dim); font-size: 12px; margin-bottom: 16px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .card-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .status { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; }
+  .status.ok { color: var(--green); }
+  .status.err { color: var(--red); }
+  .status.warn { color: var(--yellow); }
+  .status.idle { color: var(--dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green { background: var(--green); }
+  .dot.red { background: var(--red); }
+  .dot.yellow { background: var(--yellow); animation: pulse 1.5s infinite; }
+  .dot.gray { background: var(--dim); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  .detail { font-size: 12px; color: var(--dim); line-height: 1.8; }
+  .detail .val { color: var(--text); font-family: 'SF Mono', Menlo, monospace; font-size: 11px; }
+
+  .btn-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  button {
+    background: var(--border);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s;
+  }
+  button:hover { background: #484f58; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+  button.primary:hover { background: #6d28d9; }
+  button.danger { background: rgba(248,81,73,.15); border-color: var(--red); color: var(--red); }
+  button.danger:hover { background: rgba(248,81,73,.25); }
+  button.active { border-color: var(--green); color: var(--green); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:active { transform: scale(0.97); }
+
+  .bottom-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .bottom-bar button { padding: 8px 18px; font-size: 13px; }
+
+  #msg { margin-top: 12px; font-size: 12px; min-height: 18px; }
+  #msg.success { color: var(--green); }
+  #msg.error { color: var(--red); }
+  #msg.info { color: var(--blue); }
+  .spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--dim); border-top-color: var(--text); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 5px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toggle-info { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--dim); }
+  .toggle-info .val { color: var(--text); font-family: 'SF Mono', Menlo, monospace; font-size: 11px; }
+
+  .targets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .target { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .target.ok { border-color: var(--green); }
+  .target.warn { border-color: var(--yellow); }
+  .target .tname { font-size: 13px; }
+  .target .tstate { font-size: 14px; font-weight: 600; }
+  .target button { padding: 4px 12px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>网络工具</h1>
+<p class="subtitle" id="time">--</p>
+
+<!-- 当前代理 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">📡 当前代理</span>
+    <span class="status" id="curStatus"></span>
+  </div>
+  <div class="detail" id="curDetail"></div>
+  <div class="btn-row"><button class="primary" onclick="refresh()">重新检测</button></div>
+</div>
+
+<!-- 同步到各软件 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">🔁 同步到各软件</span>
+    <span class="detail" id="applyHint" style="font-size:12px;color:var(--dim)"></span>
+  </div>
+  <div class="targets" id="targets"></div>
+</div>
+
+<!-- Claude Code -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">🤖 Claude Code</span>
+    <span class="status" id="ccStatus"></span>
+  </div>
+  <div class="detail" id="ccDetail"></div>
+  <div class="detail" style="margin-top:6px;font-size:11px;color:var(--dim)">切后台用 CC Switch;连外网走上方"终端"代理</div>
+</div>
+
+<!-- Hermes 只读 -->
+<div class="card">
+  <div class="card-head">
+    <span class="card-title">🛠️ Hermes</span>
+    <span class="status" id="heStatus"></span>
+  </div>
+  <div class="detail" id="heDetail"></div>
+</div>
+
+<div id="msg"></div>
+
+<script>
+const API = '/api';
+let busy = false;
+
+async function api(path, opts) {
+  try {
+    const r = await fetch(API + path, opts);
+    return await r.json();
+  } catch(e) {
+    return {ok: false, error: '请求失败: ' + e.message};
+  }
+}
+
+async function refresh() {
+  document.getElementById('time').textContent = '刷新于 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const d = await api('/status');
+  if (!d.current) { setMsg('连接服务器失败', 'error'); return; }
+  renderCurrent(d.current);
+  renderTargets(d);
+  renderCC(d.claude_code);
+  renderHe(d.hermes);
+}
+
+function renderCurrent(cur) {
+  const s = document.getElementById('curStatus');
+  const det = document.getElementById('curDetail');
+  const hint = document.getElementById('applyHint');
+  let label, dot, cls;
+  if (cur.mode === 'tun') { label = cur.app + ' · TUN 模式'; dot = 'green'; cls = 'ok'; }
+  else if (cur.mode === 'port') { label = cur.app + ' · 端口 ' + cur.port; dot = 'green'; cls = 'ok'; }
+  else { label = '未检测到代理'; dot = 'red'; cls = 'err'; }
+  s.className = 'status ' + cls;
+  s.innerHTML = '<span class="dot ' + dot + '"></span>' + label;
+  let src = cur.sources.map(x => {
+    let st;
+    if (x.tun_config && cur.tun_active) st = 'TUN 接管';
+    else if (x.listening) st = '端口 ' + x.config_port + ' 监听';
+    else if (x.running) st = '运行中(无端口)';
+    else st = '未运行';
+    return x.app + ': ' + st + (x.running ? ' 🟢' : ' ⚫');
+  }).join('<br>');
+  det.innerHTML = src;
+  if (cur.mode === 'tun') hint.textContent = 'TUN 接管 → 各软件设为直连';
+  else if (cur.mode === 'port') hint.textContent = '填入端口 ' + cur.port;
+  else hint.textContent = '无代理,软件直连';
+}
+
+function consistentOf(target, cur, d) {
+  const wantDirect = (cur.mode === 'tun' || cur.mode === 'none');
+  const wantUrl = cur.port ? 'http://127.0.0.1:' + cur.port : null;
+  if (target === 'terminal') {
+    const z = d.zshrc_proxy;
+    return wantDirect ? !z.enabled : (z.enabled && String(z.port) === String(cur.port));
+  }
+  if (target === 'git') return d.git.consistent;
+  if (target === 'vscode') {
+    const p = d.vscode.proxy;
+    return wantDirect ? !p : (p === wantUrl);
+  }
+  if (target === 'ccswitch') {
+    const p = d.cc_switch.global_proxy;
+    return wantDirect ? !p : (p === wantUrl);
+  }
+  return true;
+}
+
+const TARGETS = [
+  ['terminal', '终端', '含 Claude Code / Hermes 等 CLI'],
+  ['git', 'git', '全局 ~/.gitconfig'],
+  ['vscode', 'VS Code', '库下载代理'],
+  ['ccswitch', 'CC Switch', '软件代理地址'],
+];
+
+function renderTargets(d) {
+  const cur = d.current;
+  const el = document.getElementById('targets');
+  el.innerHTML = TARGETS.map(([key, name, desc]) => {
+    const ok = consistentOf(key, cur, d);
+    return '<div class="target ' + (ok ? 'ok' : 'warn') + '">' +
+      '<div style="flex:1"><div class="tname">' + name + '</div>' +
+      '<div style="font-size:10px;color:var(--dim)">' + desc + '</div></div>' +
+      '<span class="tstate" style="color:' + (ok ? 'var(--green)' : 'var(--yellow)') + '">' + (ok ? '✓' : '⚠') + '</span>' +
+      '<button onclick="applyOne(\'' + key + '\')">应用</button></div>';
+  }).join('');
+}
+
+async function applyOne(target) {
+  if (busy) return;
+  busy = true;
+  setMsg('<span class="spinner"></span>应用中…', 'info');
+  const d = await api('/apply/' + target, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+  if (d.ok) setMsg(target + ' 已同步当前代理', 'success');
+  else setMsg(target + ' 失败: ' + (d.error || ''), 'error');
+  await refresh();
+  busy = false;
+}
+
+function renderCC(cc) {
+  const s = document.getElementById('ccStatus');
+  const det = document.getElementById('ccDetail');
+  if (!cc.configured) {
+    s.className = 'status err';
+    s.innerHTML = '<span class="dot red"></span>未配置';
+    det.textContent = cc.error || '';
+    return;
+  }
+  if (cc.working) { s.className = 'status ok'; s.innerHTML = '<span class="dot green"></span>正常'; }
+  else { s.className = 'status err'; s.innerHTML = '<span class="dot red"></span>连不上'; }
+  det.innerHTML = '后台: <span class="val">' + cc.provider + '</span> · 模型: <span class="val">' + cc.model + '</span>'
+    + (cc.test_error ? '<br>错误: <span class="val">' + cc.test_error + '</span>' : '');
+}
+
+function renderHe(he) {
+  const s = document.getElementById('heStatus');
+  const det = document.getElementById('heDetail');
+  if (!he.configured) { s.className = 'status idle'; s.innerHTML = '<span class="dot gray"></span>未安装'; det.textContent = he.error || ''; return; }
+  s.className = 'status ok';
+  s.innerHTML = '<span class="dot green"></span>正常';
+  det.innerHTML = '后台: <span class="val">' + he.provider + '</span> · 模型: <span class="val">' + he.model + '</span> · <span style="color:var(--blue)">DeepSeek 直连(兜底)</span>';
+}
+
+function setMsg(text, cls) {
+  const el = document.getElementById('msg');
+  el.innerHTML = text;
+  el.className = cls;
+  if (cls === 'success' || cls === 'error') {
+    setTimeout(() => { el.innerHTML = ''; el.className = ''; }, 6000);
+  }
+}
+
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
