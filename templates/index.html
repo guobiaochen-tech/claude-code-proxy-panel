@@ -165,14 +165,21 @@ async function api(path, opts) {
   }
 }
 
+let refreshing = false;
 async function refresh() {
-  document.getElementById('time').textContent = '刷新于 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  if (refreshing) return;
+  refreshing = true;
+  const cs = document.getElementById('curStatus');
+  cs.className = 'status idle';
+  cs.innerHTML = '<span class="spinner"></span>检测中…';
+  document.getElementById('time').textContent = '检测于 ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const d = await api('/status');
-  if (!d.current) { setMsg('连接服务器失败', 'error'); return; }
+  if (!d.current) { setMsg('连接服务器失败', 'error'); refreshing = false; return; }
   renderCurrent(d.current);
   renderTargets(d);
   renderCC(d.claude_code);
   renderHe(d.hermes);
+  refreshing = false;
 }
 
 function renderCurrent(cur) {
@@ -180,8 +187,14 @@ function renderCurrent(cur) {
   const det = document.getElementById('curDetail');
   const hint = document.getElementById('applyHint');
   let label, dot, cls;
-  if (cur.mode === 'tun') { label = cur.app + ' · TUN 模式'; dot = 'green'; cls = 'ok'; }
-  else if (cur.mode === 'port') { label = cur.app + ' · 端口 ' + cur.port; dot = 'green'; cls = 'ok'; }
+  if (cur.mode === 'tun') {
+    if (cur.proxy_ok) { label = cur.app + ' · TUN 模式'; dot = 'green'; cls = 'ok'; }
+    else { label = cur.app + ' · TUN 模式(代理不通)'; dot = 'yellow'; cls = 'warn'; }
+  }
+  else if (cur.mode === 'port') {
+    if (cur.proxy_ok) { label = cur.app + ' · 端口 ' + cur.port; dot = 'green'; cls = 'ok'; }
+    else { label = cur.app + ' · 端口 ' + cur.port + '(监听但代理不通)'; dot = 'yellow'; cls = 'warn'; }
+  }
   else { label = '未检测到代理'; dot = 'red'; cls = 'err'; }
   s.className = 'status ' + cls;
   s.innerHTML = '<span class="dot ' + dot + '"></span>' + label;
@@ -194,8 +207,14 @@ function renderCurrent(cur) {
     return x.app + ': ' + st + (x.running ? ' 🟢' : ' ⚫');
   }).join('<br>');
   det.innerHTML = src;
-  if (cur.mode === 'tun') hint.textContent = 'TUN 接管 → 各软件设为直连';
-  else if (cur.mode === 'port') hint.textContent = '填入端口 ' + cur.port;
+  if (cur.mode === 'tun') {
+    if (cur.proxy_ok) hint.textContent = 'TUN 接管 → 各软件设为直连';
+    else hint.textContent = '⚠ TUN 模式但代理不通,建议重启代理软件';
+  }
+  else if (cur.mode === 'port') {
+    if (cur.proxy_ok) hint.textContent = '填入端口 ' + cur.port;
+    else hint.textContent = '⚠ 端口在监听但代理不通,建议重启代理软件';
+  }
   else hint.textContent = '无代理,软件直连';
 }
 

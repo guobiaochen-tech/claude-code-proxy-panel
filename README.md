@@ -36,6 +36,20 @@
 - **FlClash** *或* **Clash Verge**：本面板检测的代理客户端。
 - **CC Switch**（可选但推荐）：Claude Code 的 provider 管理工具；本面板读取它的数据库，并把代理地址同步进去。
 
+## Supported Proxies / 支持的代理
+
+> **Only FlClash and Clash Verge are recognized.** Detection works by process name + each client's config file, so these two are all it knows. Running another proxy app:
+> - **TUN mode** — fine: the panel sets your apps to *direct*, which is correct under TUN, so things still work.
+> - **Port mode** — the panel can't recognize it and won't auto-fill the port; it shows "no proxy", so you must configure each app by hand.
+
+中：
+
+> **仅支持识别 FlClash 和 Clash Verge。** 检测靠进程名 + 各客户端的配置文件，所以只认这两个。如果你改用别的代理软件：
+> - **TUN 模式**——没问题：面板会把各软件设为*直连*，TUN 下正好正确，照常能用。
+> - **端口模式**——面板识别不到、也不会自动填端口，会显示"未检测到代理"，需要你手动给各软件配置。
+
+---
+
 ## Quick Start / 快速开始
 
 ```bash

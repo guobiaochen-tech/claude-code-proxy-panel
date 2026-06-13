@@ -62,6 +62,40 @@ def _port_alive(port):
         return False
 
 
+def _proxy_works(port, timeout=2):
+    """通过该代理端口实际转发一次请求,验证代理是否真能用(而不只是端口在监听)。
+
+    端口能连上 ≠ 代理能转发:核心进程僵死时端口仍监听但无法转发流量。
+    用 generate_204 探测(国内被墙,能拿到 204/200 即证明端到端通)。
+    """
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({
+            "http": "http://127.0.0.1:%d" % port,
+            "https": "http://127.0.0.1:%d" % port,
+        })
+    )
+    try:
+        resp = opener.open("http://www.google.com/generate_204", timeout=timeout)
+        return resp.status in (200, 204)
+    except Exception:
+        return False
+
+
+def _direct_reachable(timeout=2):
+    """不走代理端口,直接测系统能否访问外网。
+
+    TUN 模式下流量由系统路由接管(经 TUN 网卡),不经过代理端口,
+    所以用"强制直连"测系统能否真正出网。用 google.com generate_204(国内确定
+    被墙)作判据:真 TUN 接管→通;系统自带 utun 但无真实代理→不通。
+    """
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 空字典=强制不走代理
+    try:
+        resp = opener.open("http://www.google.com/generate_204", timeout=timeout)
+        return resp.status in (200, 204)
+    except Exception:
+        return False
+
+
 def _get_configured_ports():
     ports = set()
     for key in ("http_proxy", "https_proxy", "ALL_PROXY"):
@@ -97,12 +131,22 @@ def scan_proxy_ports():
 
 
 def _proc_running(*keywords):
-    """检测含任一关键词的进程是否在跑"""
+    """检测含任一关键词的主程序是否在跑(排除后台 helper/特权助手)。
+
+    Clash Verge 的 io.github.clashverge.helper 是装完即开机自启的后台特权助手,
+    主程序关了它仍在,进程名含 "verge" 会被误判成主程序在跑,需排除。
+    """
     try:
         out = subprocess.check_output(["ps", "-Ao", "comm="], timeout=3, text=True)
-        return any(any(k in ln.lower() for k in keywords) for ln in out.splitlines())
     except Exception:
         return False
+    for ln in out.splitlines():
+        ln_low = ln.lower()
+        if "helper" in ln_low:
+            continue
+        if any(k in ln_low for k in keywords):
+            return True
+    return False
 
 
 def _tun_active():
@@ -165,28 +209,35 @@ def detect_current_proxy():
     # 当前活动软件:优先进程在跑的,其次端口在监听的
     active = next((s for s in sources if s["running"]), None) or \
              next((s for s in sources if s["listening"]), None)
-    mode, port, app = "none", None, None
+    mode, port, app, proxy_ok = "none", None, None, False
     if active:
         app = active["app"]
         if active["tun_config"] and tun_sys:
             mode = "tun"
+            proxy_ok = _direct_reachable()  # TUN 接管:测系统能否真正出网
         elif active["listening"]:
             mode, port = "port", active["config_port"]
-        elif tun_sys:
-            mode = "tun"  # 进程在跑且系统有 TUN,默认 TUN
+            proxy_ok = _proxy_works(port)  # 端口在监听 ≠ 代理能转发,实测一次
+        # 不再用"系统自带 utun"兜底判 TUN:macOS 常驻 utun(IPv6/IPSec)与代理无关,
+        # 会让没开 TUN 也被误判;只在配置显式开 tun 且系统有 utun 时才判 TUN,
+        # 否则保持 none(代理软件在跑但未监听/未开 TUN 视为未正常工作)。
     return {
         "app": app,
         "mode": mode,
         "port": port,
+        "proxy_ok": proxy_ok,  # 端口模式下代理是否真能转发(实测);TUN/none 下为 False
         "tun_active": tun_sys,
         "sources": sources,
         "listening_ports": _scan_listening_ports(),
     }
 
 
-def detect_proxy():
-    """兼容旧调用:基于 detect_current_proxy 返回"""
-    cur = detect_current_proxy()
+def detect_proxy(_cur=None):
+    """兼容旧调用:基于 detect_current_proxy 返回。
+
+    _cur 可传入已算好的 detect_current_proxy() 结果,避免 status 接口重复探测。
+    """
+    cur = _cur or detect_current_proxy()
     return {
         "running": cur["mode"] != "none",
         "active_port": cur["port"],
@@ -194,6 +245,7 @@ def detect_proxy():
         "configured_ports": [],
         "app": cur["app"],
         "mode": cur["mode"],
+        "proxy_ok": cur["proxy_ok"],
         "tun_active": cur["tun_active"],
         "sources": cur["sources"],
     }
@@ -809,7 +861,7 @@ def get_full_status():
     cur = detect_current_proxy()
     return {
         "current": cur,
-        "proxy": detect_proxy(),
+        "proxy": detect_proxy(cur),
         "zshrc_proxy": get_zshrc_proxy_status(),
         "git": get_git_status(cur),
         "claude_code": get_cc_status(),
