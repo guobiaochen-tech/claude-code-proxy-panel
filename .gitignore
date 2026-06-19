@@ -5,3 +5,12 @@ __pycache__/
 .env
 CLAUDE.md
 使用说明.md
+
+# Swift 编译产物与历史二进制（只提交源码）
+app/ProxyHelper
+app/ProxyHelper.app/
+app/ProxyHelper.legacy
+app/ProxyHelper_noopt
+app/ProxyHelper_test
+app/Diag.swift
+app/menubar_app.py
